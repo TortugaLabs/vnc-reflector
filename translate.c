@@ -25,6 +25,7 @@
 #include "async_io.h"
 #include "translate.h"
 #include "client_io.h"
+#include "utils.h"
 
 #define SWAP_PIXEL8(pixel)  (pixel)
 
@@ -97,6 +98,7 @@ void transfunc_null(void *dst_buf, FB_RECT *r, void *table)
   CARD32 *fb_ptr;
   CARD32 *dst_ptr = (CARD32 *)dst_buf;
   int y;
+  UNUSED(table);
 
   fb_ptr = &g_framebuffer[r->y * g_fb_width + r->x];
 

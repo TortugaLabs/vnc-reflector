@@ -1,4 +1,5 @@
 /* VNC Reflector
+ * Copyright (C) 2017 alejandro_liu@hotmail.com.  All rights reserved.g
  * Copyright (C) 2001-2003 HorizonLive.com, Inc.  All rights reserved.
  *
  * This software is released under the terms specified in the file LICENSE,
@@ -34,6 +35,7 @@
 #include "host_io.h"
 #include "client_io.h"
 #include "encode.h"
+#include "utils.h"
 
 /*
  * Configuration options
@@ -87,6 +89,7 @@ int main(int argc, char **argv)
 {
   long cache_hits, cache_misses;
 
+  init_stdio();
   /* Parse command line, exit on error */
   parse_args(argc, argv);
 
@@ -150,11 +153,18 @@ int main(int argc, char **argv)
     }
 
     /* Main work */
-    if (connect_to_host(opt_host_info_file, opt_cl_listen_port)) {
-      if (write_pid_file()) {
-        set_control_signals();
-        aio_mainloop();
-        remove_pid_file();
+    if (opt_cl_listen_port == 0) {
+      set_client_listen_port(opt_cl_listen_port);
+      if (connect_script(opt_host_info_file)) {
+	aio_mainloop();
+      }
+    } else {
+      if (connect_to_host(opt_host_info_file, opt_cl_listen_port)) {
+	if (write_pid_file()) {
+	  set_control_signals();
+	  aio_mainloop();
+	  remove_pid_file();
+	}
       }
     }
 
@@ -263,7 +273,7 @@ static void parse_args(int argc, char **argv)
         err = 1;
       else {
         opt_cl_listen_port = atoi(optarg);
-        if (opt_cl_listen_port <= 0)
+        if (opt_cl_listen_port < 0)
           err = 1;
       }
       break;

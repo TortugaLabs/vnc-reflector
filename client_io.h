@@ -1,4 +1,5 @@
 /* VNC Reflector
+ * Copyright (C) 2017 alejandro_liu@hotmail.com.  All rights reserved.g
  * Copyright (C) 2001-2003 HorizonLive.com, Inc.  All rights reserved.
  *
  * This software is released under the terms specified in the file LICENSE,
@@ -57,14 +58,18 @@ typedef struct _CL_SLOT {
   unsigned int enable_lastrect    :1;
   unsigned int enable_newfbsize   :1;
   unsigned int newfbsize_pending  :1;
+  unsigned int enable_newname     :1;
+  unsigned int newname_pending    :1;
 } CL_SLOT;
 
 void set_client_passwords(unsigned char *password, unsigned char *password_ro);
+void set_client_listen_port(int port);
 void af_client_accept(void);
 
 /* Functions called from host_io.c */
 void fn_client_add_rect(AIO_SLOT *slot, FB_RECT *rect);
 void fn_client_send_rects(AIO_SLOT *slot);
 void fn_client_send_cuttext(AIO_SLOT *slot, CARD8 *text, size_t len);
+void fn_client_send_newname(AIO_SLOT *slot);
 
 #endif /* _REFLIB_CLIENT_IO_H */

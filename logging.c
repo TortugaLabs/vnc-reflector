@@ -143,7 +143,7 @@ void log_write(int level, char *format, ...)
     now = time(NULL);
     strftime(time_buf, 31, "%d/%m/%y %H:%M:%S", localtime(&now));
 
-    if (level >= 0 && level < sizeof(log_lchar) - 1)
+    if (level >= 0 && level < (int)sizeof(log_lchar) - 1)
       level_char = log_lchar[level];
 
     if (level <= log_file_level) {

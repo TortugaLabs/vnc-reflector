@@ -26,7 +26,7 @@
 #include "async_io.h"
 #include "logging.h"
 #include "host_io.h"
-
+#include "utils.h"
 /*
  * File-local data.
  */
@@ -361,6 +361,7 @@ static void tight_draw_indexed_data(CARD8 *src)
   CARD32 *fb_ptr;
   CARD8 *read_ptr;
 
+  UNUSED(w);
   fb_ptr = &g_framebuffer[s_rect.y * (int)g_fb_width + s_rect.x];
   read_ptr = src;
 

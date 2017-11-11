@@ -74,6 +74,7 @@ SOFTWARE.
 #include <stdlib.h>
 #include <string.h>
 
+#define UNUSED(x)	((void)(x))
 /* Get definitions for CARD16 etc. */
 #include "rfblib.h"
 
@@ -983,7 +984,7 @@ miIntersectO (
     register int  	x1;
     register int  	x2;
     register BoxPtr	pNextRect;
-
+    UNUSED(pOverlap);
     pNextRect = REGION_TOP(pReg);
 
     assert(y1 < y2);
@@ -1762,6 +1763,7 @@ miSubtractO (
 {
     register BoxPtr	pNextRect;
     register int  	x1;
+    UNUSED(pOverlap);
 
     x1 = r1->x1;
     

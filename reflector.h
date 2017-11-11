@@ -17,7 +17,7 @@
 #ifndef _REF_REFLECTOR_H
 #define _REF_REFLECTOR_H
 
-#define VERSION  "1.2.4"
+#define VERSION  "1.2.4vncmux_1.0"
 
 /* FIXME: Too many header files with too many dependencies */
 
@@ -51,5 +51,6 @@ extern void fbs_spool_byte(CARD8 b);
 extern void fbs_spool_data(void *buf, size_t len);
 extern void fbs_flush_data(void);
 extern void fbs_close_file(void);
+
 
 #endif /* _REF_REFLECTOR_H */

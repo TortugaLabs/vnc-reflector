@@ -1,3 +1,8 @@
+2017-11:
+
+	Added inetd mode/vnc multiplexer mode.
+	Pseudo-encoding for New Desktop name.
+
 2012-11-06 04:10 r10r
 
 	Applied patches from fedora upstream

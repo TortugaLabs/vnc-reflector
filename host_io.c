@@ -1,4 +1,5 @@
 /* VNC Reflector
+ * Copyright (C) 2017 alejandro_liu@hotmail.com.  All rights reserved.g
  * Copyright (C) 2001-2003 HorizonLive.com, Inc.  All rights reserved.
  *
  * This software is released under the terms specified in the file LICENSE,
@@ -50,8 +51,13 @@ static void rf_host_cuttext_hdr(void);
 static void rf_host_cuttext_data(void);
 static void fn_host_pass_cuttext(AIO_SLOT *slot);
 
+static void rf_host_newname_hdr(void);
+static void rf_host_newname_data(void);
+
 static void reset_framebuffer(void);
 static void request_update(int incr);
+
+
 
 /*
  * Implementation
@@ -114,6 +120,7 @@ void host_close_hook(void)
     if (g_framebuffer == NULL)
       aio_close(1);
     remove_active_file();
+    log_write(LL_DEBUG, "<== CLOSING ==>");
   } else {
     log_write(LL_INFO, "Closing previous connection to host");
     host_really_activate(s_new_slot);
@@ -265,6 +272,13 @@ static void rf_host_fbupdate_recthdr(void)
     return;
   }
 
+  /* Handle NewFBname "encoding", as a special case */
+  if (cur_rect.enc == RFB_ENCODING_NEWNAME) {
+    log_write(LL_DEBUG, "Receiving new name hdr...");
+    aio_setread(rf_host_newname_hdr, NULL, 4);
+    return;
+  }
+
   /* Ignore zero-size rectangles */
   if (cur_rect.h == 0 || cur_rect.w == 0) {
     log_write(LL_WARN, "Zero-size rectangle %dx%d at %d,%d (ignoring)",
@@ -294,7 +308,7 @@ static void rf_host_fbupdate_recthdr(void)
     fbupdate_rect_done();
     return;
   }
-
+  
   /* Prevent overflow of the framebuffer */
   if (cur_rect.x >= g_fb_width || cur_rect.x + cur_rect.w > g_fb_width ||
       cur_rect.y >= g_fb_height || cur_rect.y + cur_rect.h > g_fb_height) {
@@ -498,11 +512,11 @@ static CARD8 *cut_text;
 
 static void rf_host_cuttext_hdr(void)
 {
+  cut_len = (size_t)buf_get_CARD32(&cur_slot->readbuf[3]);
   log_write(LL_DETAIL,
             "Receiving ServerCutText message from host, %lu byte(s)",
             (unsigned long)cut_len);
 
-  cut_len = (size_t)buf_get_CARD32(&cur_slot->readbuf[3]);
   if (cut_len > 0)
     aio_setread(rf_host_cuttext_data, NULL, cut_len);
   else
@@ -519,6 +533,41 @@ static void rf_host_cuttext_data(void)
 static void fn_host_pass_cuttext(AIO_SLOT *slot)
 {
   fn_client_send_cuttext(slot, cut_text, cut_len);
+}
+
+static void rf_host_newname_hdr(void) {
+  CARD32 name_len;
+  name_len = (size_t)buf_get_CARD32(cur_slot->readbuf);
+  log_write(LL_DETAIL,
+            "Receiving NewName message from host, %lu byte(s)",
+            (unsigned long)name_len);
+
+  if (name_len > 0)
+    aio_setread(rf_host_newname_data, NULL, name_len);
+}
+
+static void rf_host_newname_data(void) {
+  CARD8 *name = cur_slot->readbuf;
+  int name_len;
+  CARD8 *new_name;
+
+  name_len = cur_slot->bytes_ready;
+  log_write(LL_INFO, "New Remote desktop name: %.*s",
+            (int)name_len, name);
+
+  new_name = malloc((size_t)name_len + 1);
+
+  if (new_name != NULL) {
+    if (g_screen_info.name != NULL) free(g_screen_info.name);
+    g_screen_info.name = new_name;
+    g_screen_info.name_length = name_len;
+    memcpy(g_screen_info.name, name, name_len);
+    g_screen_info.name[name_len] = '\0';
+  }
+  
+  aio_walk_slots(fn_client_send_newname, TYPE_CL_SLOT);
+  fbupdate_rect_done();
+
 }
 
 /*************************************/

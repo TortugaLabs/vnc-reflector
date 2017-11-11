@@ -66,7 +66,7 @@ void region_pack(RegionPtr pregion, int threshold)
         tmp_rect.y2 = prev_rect.y2;
         tmp_rect.x1 = prev_rect.x2;
         tmp_rect.x2 = this_rect.x1;
-        REGION_INIT(&tmp_region, &tmp_rect, 1);
+        REGION_INITC(&tmp_region, &tmp_rect, 1);
         REGION_UNION(&add_region, &add_region, &tmp_region);
         REGION_UNINIT(&tmp_region);
         joins++;
@@ -86,7 +86,7 @@ void region_pack(RegionPtr pregion, int threshold)
       area3 = (tmp_rect.x2 - tmp_rect.x1) * (tmp_rect.y2 - tmp_rect.y1);
       overhead = area3 - area2 - area1;
       if (overhead < threshold || overhead < (area1 + area2) / 100) {
-        REGION_INIT(&tmp_region, &tmp_rect, 1);
+        REGION_INITC(&tmp_region, &tmp_rect, 1);
         REGION_UNION(&add_region, &add_region, &tmp_region);
         REGION_UNINIT(&tmp_region);
         joins++;

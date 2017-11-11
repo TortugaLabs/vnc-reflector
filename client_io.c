@@ -1,4 +1,5 @@
 /* VNC Reflector
+ * Copyright (C) 2017 alejandro_liu@hotmail.com.  All rights reserved.g
  * Copyright (C) 2001-2003 HorizonLive.com, Inc.  All rights reserved.
  *
  * This software is released under the terms specified in the file LICENSE,
@@ -31,7 +32,7 @@
 
 static unsigned char *s_password;
 static unsigned char *s_password_ro;
-
+static int x_cl_listen_port;
 /*
  * Prototypes for static functions
  */
@@ -57,6 +58,7 @@ static void rf_client_cuttext_data(void);
 static void set_trans_func(CL_SLOT *cl);
 static void send_newfbsize(void);
 static void send_update(void);
+static void send_newname(void);
 
 /*
  * Implementation
@@ -67,6 +69,10 @@ void set_client_passwords(unsigned char *password, unsigned char *password_ro)
   s_password = password;
   s_password_ro = password_ro;
 }
+void set_client_listen_port(int port) {
+  x_cl_listen_port = port;
+}
+
 
 void af_client_accept(void)
 {
@@ -206,7 +212,7 @@ static void rf_client_initmsg(void)
   CL_SLOT *cl = (CL_SLOT *)cur_slot;
   unsigned char msg_server_init[24];
 
-  if (cur_slot->readbuf[0] == 0) {
+  if (cur_slot->readbuf[0] == 0  && x_cl_listen_port != 0) {
     log_write(LL_WARN, "Non-shared session requested by %s", cur_slot->name);
     aio_close(0);
   }
@@ -215,6 +221,7 @@ static void rf_client_initmsg(void)
   cl->fb_width = g_screen_info.width;
   cl->fb_height = g_screen_info.height;
   cl->enable_newfbsize = 0;
+  cl->enable_newname = 0;
 
   /* Send ServerInitialisation message */
   buf_put_CARD16(msg_server_init, cl->fb_width);
@@ -330,6 +337,7 @@ static void rf_client_encodings_data(void)
   cl->jpeg_quality = -1;
   cl->enable_lastrect = 0;
   cl->enable_newfbsize = 0;
+  cl->enable_newname = 0;
   for (i = 1; i < NUM_ENCODINGS; i++)
     cl->enc_enable[i] = 0;
 
@@ -344,7 +352,7 @@ static void rf_client_encodings_data(void)
         preferred_enc_set = 1;
       }
     }
-    if (enc >= 0 && enc < NUM_ENCODINGS) {
+    if (enc < NUM_ENCODINGS) {
       cl->enc_enable[enc] = 1;
     } else if (enc >= RFB_ENCODING_COMPESSLEVEL0 &&
                enc <= RFB_ENCODING_COMPESSLEVEL9 &&
@@ -365,6 +373,10 @@ static void rf_client_encodings_data(void)
     } else if (enc == RFB_ENCODING_NEWFBSIZE) {
       cl->enable_newfbsize = 1;
       log_write(LL_DETAIL, "Client %s supports desktop geometry changes",
+                cur_slot->name);
+    } else if (enc == RFB_ENCODING_NEWNAME) {
+      cl->enable_newname = 1;
+      log_write(LL_DETAIL, "Client %s supports desktop name changes",
                 cur_slot->name);
     }
   }
@@ -420,7 +432,7 @@ static void rf_client_updatereq(void)
     log_write(LL_DEBUG, "Received framebuffer update request (full) from %s",
               cur_slot->name);
     if (!cl->newfbsize_pending) {
-      REGION_INIT(&tmp_region, &rect, 1);
+      REGION_INITC(&tmp_region, &rect, 1);
       REGION_UNION(&cl->pending_region, &cl->pending_region, &tmp_region);
       REGION_UNION(&cl->pending_region, &cl->pending_region, &cl->copy_region);
       REGION_EMPTY(&cl->copy_region);
@@ -549,7 +561,7 @@ void fn_client_add_rect(AIO_SLOT *slot, FB_RECT *rect)
   add_rect.y1 = rect->y;
   add_rect.x2 = add_rect.x1 + rect->w;
   add_rect.y2 = add_rect.y1 + rect->h;
-  REGION_INIT(&add_region, &add_rect, 4);
+  REGION_INITC(&add_region, &add_rect, 4);
 
   /* FIXME: Currently, CopyRect is stored in copy_region only if there
      were no other non-CopyRect updates pending for this client.
@@ -610,6 +622,11 @@ void fn_client_send_cuttext(AIO_SLOT *slot, CARD8 *text, size_t len)
 
     cur_slot = saved_slot;
   }
+}
+void fn_client_send_newname(AIO_SLOT *slot) {
+  CL_SLOT *cl = (CL_SLOT *)slot;
+  if (cl->enable_newname) cl->newname_pending = 1;
+
 }
 
 /*
@@ -692,6 +709,38 @@ static void send_newfbsize(void)
   cl->update_requested = 0;
 }
 
+static void send_newname(void) {
+  CL_SLOT *cl = (CL_SLOT *)cur_slot;
+  CARD8 msg_hdr[4] = {
+    0, 0, 0, 1
+  };
+  FB_RECT rect;
+  CARD8 rect_hdr[12];
+  CARD8 name_hdr[4];
+
+  log_write(LL_DEBUG, "Sending NewName update (%s) to %s",
+               g_screen_info.name, cur_slot->name);
+  buf_put_CARD16(&msg_hdr[2], 1);	// set rectangle count to 1
+  aio_write(NULL, msg_hdr, 4);
+
+  rect.x = 0;	// NewName pseudo-encoding rectangle
+  rect.y = 0;
+  rect.w = 0;
+  rect.h = 0;
+  rect.enc = RFB_ENCODING_NEWNAME;
+  put_rect_header(rect_hdr, &rect);
+  aio_write(NULL, rect_hdr, 12);
+  
+  buf_put_CARD32(name_hdr, g_screen_info.name_length); // Size of string
+  aio_write(NULL, name_hdr, 4);
+
+  aio_write(wf_client_update_finished, g_screen_info.name, g_screen_info.name_length);
+
+  /* Something has been queued for sending. */
+  cl->update_in_progress = 1;
+  cl->update_requested = 0;
+}
+
 /*
  * Send pending framebuffer update.
  * FIXME: Function too big.
@@ -713,6 +762,15 @@ static void send_update(void)
   int raw_bytes = 0, hextile_bytes = 0;
   int i, idx, rev_order;
 
+  /* Process desktop name change. */
+  if (cl->newname_pending) {
+    /* Update desktop name and clear newname_pending flag */
+    cl->newname_pending=0;
+    log_write(LL_DEBUG,"*** Applying new name %.*s to %s",
+	g_screen_info.name_length, g_screen_info.name, cur_slot->name);
+    if (cl->enable_newname) send_newname();
+  }
+
   /* Process framebuffer size change. */
   if (cl->newfbsize_pending) {
     /* Update framebuffer size, clear newfbsize_pending flag. */
@@ -726,7 +784,7 @@ static void send_update(void)
     fb_rect.y1 = 0;
     fb_rect.x2 = cl->fb_width;
     fb_rect.y2 = cl->fb_height;
-    REGION_INIT(&fb_region, &fb_rect, 1);
+    REGION_INITC(&fb_region, &fb_rect, 1);
     REGION_COPY(&cl->pending_region, &fb_region);
     REGION_UNINIT(&fb_region);
     REGION_EMPTY(&cl->copy_region);

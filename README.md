@@ -1,11 +1,6 @@
-===========================================================================
-                            VNC Reflector 1.2.4
-               Copyright (C) 2001-2003 HorizonLive.com, Inc.
-===========================================================================
+# VNC Reflector
 
-
-About VNC Reflector
-~~~~~~~~~~~~~~~~~~~
+## About VNC Reflector
 
 VNC Reflector is a specialized VNC server which acts as a proxy
 sitting between real VNC server (host) and a number of VNC clients. It
@@ -28,52 +23,65 @@ supported on client connections.
 Please note that the documentation is incomplete.
 
 
-Licensing terms
-~~~~~~~~~~~~~~~
+## Licensing terms
 
-This software is Copyright (C) 2001-2003 HorizonLive.com, Inc.
+* Copyright (C) 2017 alejandro_liu@hotmail.com
+* Copyright (C) 2001-2003 HorizonLive.com, Inc.  
+* Copyright (c) 1988,1989,1990,1991,1992 by Richard Outerbridge.  
+  (GEnie : OUTER; CIS : [71755,204]) Graven Imagery, 1992.
+* Copyright 1987, 1988, 1989, 1998  The Open Group
+
 All rights reserved.
 
 This software is released under the terms specified in the file LICENSE,
-included.  HorizonLive provides e-Learning and collaborative synchronous
-presentation solutions in a totally Web-based environment.  For more
-information about HorizonLive, please see our website:
+included.
 
-  http://www.horizonlive.com/
-
-This software was authored by Constantin Kaplinsky <const@ce.cctpu.edu.ru>
+This software was originally authored by Constantin Kaplinsky <const@ce.cctpu.edu.ru>
 and sponsored by HorizonLive.com, Inc.
 
+## Command-line usage
 
-Command-line usage
-~~~~~~~~~~~~~~~~~~
-
+* * *
+````
 ./vncreflector [OPTIONS...] HOST_INFO_FILE
+````
+* * *
+
+
 
 Options:
 
-  -i PID_FILE     - write pid file, appending listening port to the filename
-  -p PASSWD_FILE  - read a plaintext client password file [default: passwd]
-  -a ACTIVE_FILE  - create file during times when a host is connected
-  -c ACTIONS_FILE - on events, execute commands specified in a file
-  -l LISTEN_PORT  - port to listen for client connections [default: 5999]
-  -b IP_ADDRESS   - bind listening sockets to a specific IP [default: any]
-  -s FBS_PREFIX   - save host sessions in rfbproxy-compatible files
+*  -i PID_FILE     - write pid file, appending listening port to the filename
+*  -p PASSWD_FILE  - read a plaintext client password file [default: passwd]
+*  -a ACTIVE_FILE  - create file during times when a host is connected
+*  -c ACTIONS_FILE - on events, execute commands specified in a file
+*  -l LISTEN_PORT  - port to listen for client connections [default: 5999]
+*  -b IP_ADDRESS   - bind listening sockets to a specific IP [default: any]
+*  -s FBS_PREFIX   - save host sessions in rfbproxy-compatible files
                     (optionally appending 3-digit session IDs to the
                     filename prefix, only if used without the -j option)
-  -j              - join saved sessions (see -s option) in one session file
-  -t              - use Tight encoding for host communications if possible
-  -T COMPR_LEVEL  - like -t, but use the specified compression level (1..9)
-  -g LOG_FILE     - write logs to the specified file [default: reflector.log]
-  -v LOG_LEVEL    - set verbosity level for the log file (0..6) [default: 4]
-  -f LOG_LEVEL    - run in foreground, show logs on stderr at the specified
+*  -j              - join saved sessions (see -s option) in one session file
+*  -t              - use Tight encoding for host communications if possible
+*  -T COMPR_LEVEL  - like -t, but use the specified compression level (1..9)
+*  -g LOG_FILE     - write logs to the specified file [default: reflector.log]
+*  -v LOG_LEVEL    - set verbosity level for the log file (0..6) [default: 4]
+*  -f LOG_LEVEL    - run in foreground, show logs on stderr at the specified
                     verbosity level (0..6) [note: use 3 for normal output]
-  -q              - suppress printing copyright banner at startup
-  -h              - print this help message
+*  -q              - suppress printing copyright banner at startup
+*  -h              - print this help message
 
+## VNC Multiplexer mode
 
-Format of the HOST_INFO_FILE
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+If the `LISTEN_PORT` specified is `0` (zero), then VNC multiplexer mode
+is activated.  What this does is that instead of listening on a port
+it will simply use `STDIN/STDOUT` as a pre-opened socket.  As if it was
+invoked from [inetd][inetd].  Then the `HOST_INFO_FILE` is treated
+as a script that will launch a `vnc` session (again in [inetd][inetd]
+mode.  The script will have an argument which is the file descriptor
+that will receive a new host to connect to in the format of the
+`HOST_INFO_FILE` explained later.
+
+## Format of the HOST_INFO_FILE
 
 HOST_INFO_FILE provides information about the host to connect to. It's
 first line should begin with hostname (or with an asterisk if we would wait
@@ -86,19 +94,21 @@ connections, default listening port number is 5500.
 
 A sample to connect to some.hostname.com's display :0 (port 5900):
 
-=== cut ===
+* * *
+````
 some.hostname.com:0 PaS$w0rD
-=== cut ===
+````
+* * *
 
 A sample to listen for host connections on TCP port 5598:
 
-=== cut ===
+* * *
+````
 *:5598 PaS$w0rD
-=== cut ===
+````
+* * *
 
-
-Format of the PASSWD_FILE
-~~~~~~~~~~~~~~~~~~~~~~~~~
+## Format of the PASSWD_FILE
 
 PASSWD_FILE keeps passwords for client connections.
 
@@ -109,24 +119,24 @@ there is no read-only password, and all clients would have been granted
 full-control access.
 
 
-Format of the ACTIONS_FILE
-~~~~~~~~~~~~~~~~~~~~~~~~~~
+## Format of the ACTIONS_FILE
 
 ACTIONS_FILE used with the -c option specifies commands that should be
 executed upon certain events. Each line starts with a keyword denoting a
 particular event type, then follows colon character (":"), and after an
 optional sequence of spaces follows the command to execute. An example:
 
-=== cut ===
+* * *
+````
 host_activate: echo "new host" >> /tmp/connections.txt
-=== cut ===
+````
+* * *
 
 Currently, the only supported event type is `host_activate', which is raised
 on each new host connection.
 
 
-Control signals
-~~~~~~~~~~~~~~~
+## Control signals
 
   * SIGHUP signal causes VNC Reflector to disconnect all connected clients.
 
@@ -141,3 +151,26 @@ Control signals
     specified there (or to start listening for reversed host connections). 
     Client connections would be preserved.
 
+## TODO
+
+1. Enable Client SetDesktopSize message
+   - host_io: Implement ExtendedDesktopSize pseudo encoding support
+   - client_io: Implement SetDesktopSize message handling (sending
+     error)
+   - client_io: Implement ExtendedDesktopSize semantics
+   - client_io: Implement SetDesktopSize message handling
+2. display reader code:
+   - upon receiving reconnect message
+   - try connect to new host
+   - if success, we switch to new host and set the host
+     slot to quit program on close.
+   - if fail, we continue with the old host.  Old host should
+     have the loginscript running and after a while if it stays
+     running it assumes that something went wrong.  Show a message
+     and allow to re-login.
+3. In inetd mode, when entering inetd mode, we set the client slot
+   to quit program on close.  The host slot should be setup on close
+   to quit program.  (We could re-run loginscript but most likely
+   that would lead to an infinite loop)
+
+    [inetd]: https://en.wikipedia.org/wiki/Inetd "About Inetd"

@@ -28,6 +28,7 @@
 #include "translate.h"
 #include "client_io.h"
 #include "encode.h"
+#include "utils.h"
 
 /* These parameters may be adjusted. */
 #define MIN_SPLIT_RECT_SIZE     4096
@@ -837,7 +838,7 @@ static void                                                             \
 FillPalette##bpp(int count)                                             \
 {                                                                       \
     CARD##bpp *data = (CARD##bpp *)tightBeforeBuf;                      \
-    CARD##bpp c0, c1, ci;                                               \
+    CARD##bpp c0, c1, ci = NULL;                                        \
     int i, n0, n1, ni;                                                  \
                                                                         \
     c0 = data[0];                                                       \
@@ -1115,7 +1116,7 @@ DetectSmoothImage (RFB_PIXEL_FORMAT *fmt, FB_RECT *r)
   }
 
   avgError = DetectSmoothImage24(fmt, r);
-  return (avgError < tightConf[qualityLevel].jpegThreshold24);
+  return (avgError <  (unsigned long)tightConf[qualityLevel].jpegThreshold24);
 }
 
 static unsigned long
@@ -1126,6 +1127,7 @@ DetectSmoothImage24 (RFB_PIXEL_FORMAT *fmt, FB_RECT *r)
   int pixelCount = 0;
   int pix, left[3];
   unsigned long avgError;
+  UNUSED(fmt);
 
   memset(diffStat, 0, 256*sizeof(int));
 
@@ -1257,6 +1259,7 @@ PrepareRowForJpeg(CARD8 *dst, int x, int y, int count)
 static void
 JpegInitDestination(j_compress_ptr cinfo)
 {
+  UNUSED(cinfo);
   jpegError = FALSE;
   jpegDstManager.next_output_byte = (JOCTET *)tightAfterBuf;
   jpegDstManager.free_in_buffer = (size_t)tightAfterBufSize;
@@ -1265,6 +1268,7 @@ JpegInitDestination(j_compress_ptr cinfo)
 static boolean
 JpegEmptyOutputBuffer(j_compress_ptr cinfo)
 {
+  UNUSED(cinfo);
   jpegError = TRUE;
   jpegDstManager.next_output_byte = (JOCTET *)tightAfterBuf;
   jpegDstManager.free_in_buffer = (size_t)tightAfterBufSize;
@@ -1275,12 +1279,14 @@ JpegEmptyOutputBuffer(j_compress_ptr cinfo)
 static void
 JpegTermDestination(j_compress_ptr cinfo)
 {
+  UNUSED(cinfo);
   jpegDstDataLen = tightAfterBufSize - jpegDstManager.free_in_buffer;
 }
 
 static void
 JpegSetDstManager(j_compress_ptr cinfo)
 {
+  UNUSED(cinfo);
   jpegDstManager.init_destination = JpegInitDestination;
   jpegDstManager.empty_output_buffer = JpegEmptyOutputBuffer;
   jpegDstManager.term_destination = JpegTermDestination;

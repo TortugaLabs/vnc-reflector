@@ -219,6 +219,11 @@ extern RegDataRec miBrokenData;
 	    (_pReg)->data = &miEmptyData; \
     } \
 }
+#define REGION_INITC(_pReg, _rect, _size) \
+{ \
+	(_pReg)->extents = *(_rect); \
+	(_pReg)->data = (RegDataPtr)NULL; \
+}
 
 #define REGION_UNINIT(_pReg) \
 { \

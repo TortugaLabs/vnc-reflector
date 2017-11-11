@@ -26,6 +26,7 @@
 #include "translate.h"
 #include "client_io.h"
 #include "encode.h"
+#include "utils.h"
 
 /* This structure describes cached data for a properly-aligned 16x16 tile. */
 /* NOTE: If hextile_datasize is not 0 then valid_f should be non-zero too, */
@@ -153,6 +154,7 @@ AIO_BLOCK *rfb_encode_raw_block(CL_SLOT *cl, FB_RECT *r)
 AIO_BLOCK *rfb_encode_copyrect_block(CL_SLOT *cl, FB_RECT *r)
 {
   AIO_BLOCK *block;
+  UNUSED(cl);
 
   block = malloc(sizeof(AIO_BLOCK) + 12 + 4);
   if (block) {
@@ -440,7 +442,7 @@ static int encode_tile_ht##bpp(CARD8 *dst_buf, CARD##bpp *tile_buf,          \
                                PALETTE2 *pal, FB_RECT *r)                    \
 {                                                                            \
   CARD8 *dst = dst_buf;                                                      \
-  CARD8 *dst_num_subrects;                                                   \
+  CARD8 *dst_num_subrects = NULL;                                            \
   CARD8 *dst_limit;                                                          \
   int x, y, sx, sy;                                                          \
   int best_w, best_h, max_x;                                                 \

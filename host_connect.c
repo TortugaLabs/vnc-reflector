@@ -1,4 +1,5 @@
 /* VNC Reflector
+ * Copyright (C) 2017 alejandro_liu@hotmail.com.  All rights reserved.g
  * Copyright (C) 2001-2003 HorizonLive.com, Inc.  All rights reserved.
  *
  * This software is released under the terms specified in the file LICENSE,
@@ -35,8 +36,10 @@
 #include "client_io.h"
 #include "encode.h"
 #include "host_connect.h"
+#include "utils.h"
 
 static int parse_host_info(void);
+static int parse_host_string(char *buf);
 static void host_init_hook(void);
 static void host_listen_init_hook(void);
 static void host_accept_hook(void);
@@ -48,6 +51,9 @@ static void rf_host_auth_done(void);
 static void send_client_initmsg(void);
 static void rf_host_initmsg(void);
 static void rf_host_set_formats(void);
+static void disp_selector_init(void);
+static void disp_selector_read(void);
+
 
 static int s_request_tight;
 static int s_tight_level;
@@ -71,24 +77,45 @@ void set_host_encodings(int request_tight, int tight_level)
 }
 
 /*
- * Connect to a remote RFB host
+ * Re-use an already connected socket
  */
+int connect_script(const char *script) {
+  pid_t srv;
+  int sv[2], pf[2];
 
-int connect_to_host(char *host_info_file, int cl_listen_port)
-{
+  if (socketpair(AF_LOCAL,SOCK_STREAM,0, sv) == -1) die(__LINE__,"socketpair: %s\n",strerror(errno));
+  if (pipe(pf) == -1) die(__LINE__,"pipe: %s\n",strerror(errno));
+  
+  srv = fork();
+  if (srv == -1) die(__LINE__,"fork: %s",strerror(errno));
+
+  if (srv == 0) {
+    /* Child process */
+    char buf[64];
+
+    close(sv[0]);
+    dup2(sv[1],0);
+    dup2(sv[1],1);
+    close(sv[1]);
+    close(pf[0]);
+    snprintf(buf,sizeof(buf),"%d",pf[1]);
+
+    if (execlp(script,script,buf,NULL) == -1) die(__LINE__,"exec(%s): %s\n", script, strerror(errno));
+    exit(errno);
+  }
+  close(sv[1]);
+  close(pf[1]);
+ 
+  log_write(LL_MSG, "Setup connection");
+  aio_add_slot(sv[0], NULL, host_init_hook, sizeof(HOST_SLOT));
+  aio_add_slot(pf[0], "disp selector", disp_selector_init, sizeof(AIO_SLOT));
+  return 1;
+}
+
+static int _do_connect_to_host() {
   int host_fd;
   struct hostent *phe;
   struct sockaddr_in host_addr;
-
-  /* Save arguments in static variables, for later use */
-  if (host_info_file != NULL)
-    s_host_info_file = host_info_file;
-  if (cl_listen_port != 0)
-    s_cl_listen_port = cl_listen_port;
-
-  /* Extract hostname, port and password from host info file */
-  if (!parse_host_info())
-    return 0;
 
   if (strcmp(s_hostname, "*") != 0) {
 
@@ -138,38 +165,36 @@ int connect_to_host(char *host_info_file, int cl_listen_port)
   }
 
   return 1;
+
 }
 
-static int parse_host_info(void)
+/*
+ * Connect to a remote RFB host
+ */
+
+int connect_to_host(char *host_info_file, int cl_listen_port)
 {
-  FILE *fp;
-  char buf[256];
+  /* Save arguments in static variables, for later use */
+  if (host_info_file != NULL)
+    s_host_info_file = host_info_file;
+  if (cl_listen_port != 0)
+    s_cl_listen_port = cl_listen_port;
+
+  /* Extract hostname, port and password from host info file */
+  if (!parse_host_info())
+    return 0;
+
+  return _do_connect_to_host();
+}
+
+static int parse_host_string(char *buf) {
   char *pos, *colon_pos, *space_pos;
-  int len;
-
-  fp = fopen(s_host_info_file, "r");
-  if (fp == NULL) {
-    log_write(LL_ERROR, "Cannot open host info file: %s", s_host_info_file);
-    return 0;
-  }
-
-  /* Read the file into a buffer first */
-  len = fread(buf, 1, 255, fp);
-  buf[len] = '\0';
-  fclose(fp);
-
-  if (len == 0) {
-    log_write(LL_ERROR, "Error reading host info file (is it empty?)");
-    return 0;
-  }
 
   /* Truncate at the end of first line, respecting MS-DOS end-of-lines */
   pos = strchr(buf, '\n');
-  if (pos != NULL)
-    *pos = '\0';
+  if (pos != NULL) *pos = '\0';
   pos = strchr(buf, '\r');
-  if (pos != NULL)
-    *pos = '\0';
+  if (pos != NULL) *pos = '\0';
 
   /* FIXME: parsing code below is primitive */
 
@@ -206,6 +231,73 @@ static int parse_host_info(void)
   }
 
   return 1;
+}
+
+static int parse_host_info(void)
+{
+  FILE *fp;
+  char buf[256];
+  int len;
+
+  fp = fopen(s_host_info_file, "r");
+  if (fp == NULL) {
+    log_write(LL_ERROR, "Cannot open host info file: %s", s_host_info_file);
+    return 0;
+  }
+
+  /* Read the file into a buffer first */
+  len = fread(buf, 1, 255, fp);
+  buf[len] = '\0';
+  fclose(fp);
+
+  if (len == 0) {
+    log_write(LL_ERROR, "Error reading host info file (is it empty?)");
+    return 0;
+  }
+  return parse_host_string(buf);
+}
+static void disp_selector_init(void) {
+  cur_slot->type = TYPE_HOST_READER_SLOT;
+  aio_setclose(aio_close);
+  aio_setread(disp_selector_read, NULL, 0);
+}
+
+static void _fn_close(AIO_SLOT *slot)
+{
+  aio_close_other(slot, 0);
+}
+static void _fn_reconnect_close(AIO_SLOT *slot)
+{
+  aio_close_other(slot, 0);
+  _do_connect_to_host();
+}
+
+				  
+static void disp_selector_read(void) {
+  char *buf = (char *)cur_slot->readbuf;
+  int cnt = cur_slot->bytes_ready;
+  if (cnt == 0) {
+    log_write(LL_DEBUG,"Closing disp selector reader\n");
+    aio_setclose(NULL);
+    aio_close(0);
+    return;
+  }
+  
+  buf[cnt] = 0;
+  log_write(LL_MSG, "READ: %s", buf);
+  if (!parse_host_string(buf)) die(__LINE__,"Parsing read string failed\n");
+
+  
+  aio_walk_slots(_fn_close, TYPE_HOST_CONNECTING_SLOT);
+  /* If host connection is active, aio_walk_slots would return 1 and
+     we would request reconnect after current host connection is
+     closed (fn_reconnect_to_host function). Otherwise (if there is no
+     host connection), just connect immediately. */
+
+  if (aio_walk_slots(_fn_reconnect_close, TYPE_HOST_ACTIVE_SLOT) == 0)
+    _do_connect_to_host();
+
+  log_write(LL_DEBUG,"RECONNECTED\n");
 }
 
 static void host_init_hook(void)
@@ -358,13 +450,20 @@ static void rf_host_initmsg(void)
   hs->temp_len = buf_get_CARD32(&cur_slot->readbuf[20]);
   aio_setread(rf_host_set_formats, NULL, hs->temp_len);
 }
+static void _help_accept(AIO_SLOT *slot) {
+  AIO_SLOT *saved;
+  saved = cur_slot;
+  cur_slot = slot;
+  aio_setclose(exit);
+  cur_slot = saved;
+}
 
 static void rf_host_set_formats(void)
 {
   HOST_SLOT *hs = (HOST_SLOT *)cur_slot;
   CARD8 *new_name;
   unsigned char setpixfmt_msg[4 + SZ_RFB_PIXEL_FORMAT];
-  unsigned char setenc_msg[32] = {
+  unsigned char setenc_msg[40] = {
     2,                          /* Message id */
     0,                          /* Padding -- not used */
     0, 0                        /* Number of encodings */
@@ -387,6 +486,7 @@ static void rf_host_set_formats(void)
     memcpy(g_screen_info.name, cur_slot->readbuf, hs->temp_len);
     g_screen_info.name[hs->temp_len] = '\0';
   }
+  aio_walk_slots(fn_client_send_newname, TYPE_CL_SLOT);
 
   log_write(LL_DETAIL, "Setting up pixel format");
 
@@ -403,15 +503,20 @@ static void rf_host_set_formats(void)
     buf_put_CARD32(&setenc_msg[16], RFB_ENCODING_RAW);
     buf_put_CARD32(&setenc_msg[20], RFB_ENCODING_LASTRECT);
     buf_put_CARD32(&setenc_msg[24], RFB_ENCODING_NEWFBSIZE);
+    buf_put_CARD32(&setenc_msg[28], RFB_ENCODING_NEWNAME);
     if (s_tight_level >= 0 && s_tight_level <= 9) {
       log_write(LL_DETAIL, "Requesting compression level %d", s_tight_level);
-      buf_put_CARD32(&setenc_msg[28], (RFB_ENCODING_COMPESSLEVEL0 +
-                                       (CARD32)s_tight_level));
+      buf_put_CARD32(&setenc_msg[32], (RFB_ENCODING_COMPESSLEVEL0 + (CARD32)s_tight_level));
+      buf_put_CARD16(&setenc_msg[2], 8);
+      setenc_msg_size = 36;
+      //buf_put_CARD32(&setenc_msg[28], (RFB_ENCODING_COMPESSLEVEL0 + (CARD32)s_tight_level));
+      //buf_put_CARD16(&setenc_msg[2], 7);
+      //setenc_msg_size = 32;
+    } else {
       buf_put_CARD16(&setenc_msg[2], 7);
       setenc_msg_size = 32;
-    } else {
-      buf_put_CARD16(&setenc_msg[2], 6);
-      setenc_msg_size = 28;
+      //buf_put_CARD16(&setenc_msg[2], 6);
+      //setenc_msg_size = 28;
     }
   } else {
     log_write(LL_DETAIL, "Requesting Hextile encoding");
@@ -419,8 +524,11 @@ static void rf_host_set_formats(void)
     buf_put_CARD32(&setenc_msg[8],  RFB_ENCODING_COPYRECT);
     buf_put_CARD32(&setenc_msg[12], RFB_ENCODING_RAW);
     buf_put_CARD32(&setenc_msg[16], RFB_ENCODING_NEWFBSIZE);
-    buf_put_CARD16(&setenc_msg[2], 4);
-    setenc_msg_size = 20;
+    buf_put_CARD32(&setenc_msg[20], RFB_ENCODING_NEWNAME);
+    buf_put_CARD16(&setenc_msg[2], 5);
+    setenc_msg_size = 24;
+    //buf_put_CARD16(&setenc_msg[2], 4);
+    //setenc_msg_size = 20;
   }
 
   log_write(LL_DEBUG, "Sending SetEncodings message");
@@ -429,12 +537,20 @@ static void rf_host_set_formats(void)
   /* If there was no local framebuffer yet, start listening for client
      connections, assuming we are mostly ready to serve clients. */
   if (g_framebuffer == NULL) {
-    if (!aio_listen(s_cl_listen_port, NULL, af_client_accept,
-                    sizeof(CL_SLOT))) {
-      log_write(LL_ERROR, "Error creating listening socket: %s",
-                strerror(errno));
-      aio_close(1);
-      return;
+    if (s_cl_listen_port == 0) {
+      // This is script mode...
+      close(1);
+      aio_add_slot(0 /* stdin */, "LOCAL",af_client_accept, sizeof(CL_SLOT));
+      aio_walk_slots(_help_accept, TYPE_CL_SLOT);
+
+    } else {
+      if (!aio_listen(s_cl_listen_port, NULL, af_client_accept,
+		      sizeof(CL_SLOT))) {
+	log_write(LL_ERROR, "Error creating listening socket: %s",
+		  strerror(errno));
+	aio_close(1);
+	return;
+      }
     }
   }
 

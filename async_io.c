@@ -1,4 +1,5 @@
 /* VNC Reflector
+ * Copyright (C) 2017 alejandro_liu@hotmail.com.  All rights reserved.
  * Copyright (C) 2001-2003 HorizonLive.com, Inc.  All rights reserved.
  *
  * This software is released under the terms specified in the file LICENSE,
@@ -427,7 +428,7 @@ void aio_setread(AIO_FUNCPTR fn, void *inbuf, int bytes_to_read)
   if (inbuf != NULL) {
     cur_slot->readbuf = inbuf;
   } else {
-    if (bytes_to_read <= sizeof(cur_slot->buf256)) {
+    if (bytes_to_read <= (int)sizeof(cur_slot->buf256)) {
       cur_slot->readbuf = cur_slot->buf256;
     } else {
       cur_slot->readbuf = malloc(bytes_to_read);
@@ -550,17 +551,29 @@ static void aio_process_input(AIO_SLOT *slot)
 
   if (!slot->close_f) {
     errno = 0;
-    if (slot->bytes_to_read - slot->bytes_ready > 0) {
-      bytes = read(slot->fd, slot->readbuf + slot->bytes_ready,
-                   slot->bytes_to_read - slot->bytes_ready);
-    }
-    if (bytes > 0 || slot->bytes_to_read == 0) {
-      slot->bytes_ready += bytes;
-      if (slot->bytes_ready == slot->bytes_to_read) {
-        cur_slot = slot;
-        (*slot->readfunc)();
+    if (slot->bytes_to_read == 0) {
+      bytes = read(slot->fd, slot->readbuf, sizeof(slot->buf256));
+      if (bytes > 0 || slot->bytes_to_read == 0) {
+	slot->bytes_ready = bytes;
+	cur_slot = slot;
+	(*slot->readfunc)();
+	return;
       }
-    } else if (bytes == 0 || (bytes < 0 && errno != EAGAIN)) {
+    } else {
+      if (slot->bytes_to_read - slot->bytes_ready > 0) {
+	bytes = read(slot->fd, slot->readbuf + slot->bytes_ready,
+		    slot->bytes_to_read - slot->bytes_ready);
+      }
+      if (bytes > 0 || slot->bytes_to_read == 0) {
+	slot->bytes_ready += bytes;
+	if (slot->bytes_ready == slot->bytes_to_read) {
+	  cur_slot = slot;
+	  (*slot->readfunc)();
+	  return;
+	}
+      }
+    }
+    if (bytes == 0 || (bytes < 0 && errno != EAGAIN)) {
       slot->close_f = 1;
       slot->errio_f = 1;
       slot->errread_f = 1;

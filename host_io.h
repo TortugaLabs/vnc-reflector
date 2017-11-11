@@ -1,4 +1,5 @@
 /* VNC Reflector
+ * Copyright (C) 2017 alejandro_liu@hotmail.com.  All rights reserved.g
  * Copyright (C) 2001-2003 HorizonLive.com, Inc.  All rights reserved.
  *
  * This software is released under the terms specified in the file LICENSE,
@@ -20,6 +21,7 @@
 #define TYPE_HOST_LISTENING_SLOT   2
 #define TYPE_HOST_CONNECTING_SLOT  3
 #define TYPE_HOST_ACTIVE_SLOT      4
+#define TYPE_HOST_READER_SLOT      5
 
 /* Extension to AIO_SLOT structure to hold state for host connection */
 typedef struct _HOST_SLOT {

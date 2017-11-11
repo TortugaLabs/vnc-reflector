@@ -117,6 +117,7 @@ typedef struct _RFB_SCREEN_INFO {
 
 #define RFB_ENCODING_LASTRECT       0xFFFFFF20
 #define RFB_ENCODING_NEWFBSIZE      0xFFFFFF21
+#define RFB_ENCODING_NEWNAME        0xFFFFFECD
 
 /*
  * Hextile encoding

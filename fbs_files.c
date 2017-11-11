@@ -190,7 +190,7 @@ void fbs_write_data(void *buf, size_t len)
 
   if (fwrite(data_size_buf, 1, 4, s_fbs_fp) != 4 ||
       fwrite(buf, 1, len, s_fbs_fp) != len ||
-      fwrite(timestamp_buf, 1, 4 + padding, s_fbs_fp) != 4 + padding) {
+      (int)fwrite(timestamp_buf, 1, 4 + padding, s_fbs_fp) != 4 + padding) {
     log_write(LL_WARN, "Could not write FBS file data");
     fbs_close_file();
   }

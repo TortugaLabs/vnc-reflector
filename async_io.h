@@ -1,4 +1,5 @@
 /* VNC Reflector
+ * Copyright (C) 2017 alejandro_liu@hotmail.com.  All rights reserved.g
  * Copyright (C) 2001-2003 HorizonLive.com, Inc.  All rights reserved.
  *
  * This software is released under the terms specified in the file LICENSE,
@@ -49,7 +50,7 @@ typedef struct _AIO_SLOT {
   size_t bytes_to_read;         /* Bytes to read into the input buffer     */
                                 /*   to be set with aio_setread(), or size */
                                 /*   of the slot structure to allocate, if */
-                                /*   this is a lostening slot              */
+                                /*   this is a listening slot              */
   size_t bytes_ready;           /* Bytes ready in the input buffer         */
   unsigned char buf256[256];    /* Built-in input buffer                   */
 
