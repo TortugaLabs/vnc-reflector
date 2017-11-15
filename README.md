@@ -172,5 +172,8 @@ on each new host connection.
    to quit program on close.  The host slot should be setup on close
    to quit program.  (We could re-run loginscript but most likely
    that would lead to an infinite loop)
+4. Add TLS support to client connection
+   - Note, the *Free* VNC applet in Chrome doesn't support TLS!
+   - Would not work with Protocol v3.3
 
     [inetd]: https://en.wikipedia.org/wiki/Inetd "About Inetd"
